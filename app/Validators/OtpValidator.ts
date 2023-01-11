@@ -8,5 +8,8 @@ export default class OtpValidator {
     email: schema.string({}, [rules.email()]),
   })
 
-  public messages: CustomMessages = {}
+  public messages: CustomMessages = {
+    'required': 'The {{ field }} is required',
+    'email.email': 'This e mail is not valid',
+  }
 }

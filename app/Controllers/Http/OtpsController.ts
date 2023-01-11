@@ -41,42 +41,58 @@ export default class OtpsController {
           .to(payload.email)
           .subject('OTP Code')
           .text('Your OTP code for login: ' + otp)
+      }).catch((err)=>{
+        return response.status(400).json({
+          message: 'Error occured',
+        })
       })
 
       return response.send({ Status: 'Success', Details: encoded })
     } catch (error) {
-      response.json({
-        message: 'Sending OTP failed by error',
-        error: `${error.message}`,
+      response.status(400).json({
+        message: 'Format Error',
+        errors: error.messages.errors.map((err) => err.message)
       })
     }
   }
 
-  public async  verifyEmailOtp({ request, response }) {
-    try{
+  public async verifyEmailOtp({ request, response }) {
+    try {
       const payload = await request.validate(VerificationValidator)
-      const currentDate = this.AddMinutesToDate((new Date()), 10)
+      const currentDate = this.AddMinutesToDate(new Date(), 10)
       const decoded = Encryption.decrypt(payload.verification_key)
       const obj = JSON.parse(decoded)
 
+      // eslint-disable-next-line @typescript-eslint/naming-convention
       const otp_instance = await Otp.find(obj.otp_id)
-      if(payload.email != obj.email) throw new Error("OTP was not sent to this particular email");
-
-      if(otp_instance && otp_instance.verified !== true && currentDate >= otp_instance.expiration_time && payload.otp == otp_instance.otp){
+      // throw new Error()
+      if (!otp_instance || payload.email !== obj.email || !(payload.otp === otp_instance.otp)) {
+        return response.status(403).json({
+          ERR_CODE: 403,
+          message: 'OTP was not sent to this particular email',
+        })
+      } else if (currentDate < otp_instance.expiration_time) {
+        return response.status(403).json({
+          ERR_CODE: 403,
+          message: 'This OTP has expired.',
+        })
+      } else if (otp_instance.verified) {
+        return response.status(403).json({
+          ERR_CODE: 403,
+          message: 'This OTP has already been verified.',
+        })
+      } else {
         otp_instance.verified = true
         otp_instance.save()
-      }else{
-        throw new Error('OTP verify request failed.')
+        return response.status(200).json({
+          Status: 'Success',
+          Details: 'OTP Matched',
+        })
       }
-      response.status(200)
-      return response.send({
-          "Status": "Success",
-          "Details":  "OTP Matched"
-      })
-    }catch(error){
-      response.json({
-        message: 'Verification OTP failed by error',
-        error: `${error.message}`,
+    } catch (error) {
+      response.status(400).json({
+        message: 'Format error',
+        errors: error.messages.errors.map((err) => err.message),
       })
     }
   }
